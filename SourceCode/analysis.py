@@ -1,41 +1,39 @@
 import os
 import pandas as pd
 
-# Đường dẫn thư mục Project ( BTL-Python)
-BASE_DIR = os.path.join(os.path.dirname(__file__),'..')
-
-# Đường dẫn vào file data.csv
-DATA_PATH = os.path.join(BASE_DIR, 'data.csv')
-
-# Đường dẫn vào thư mục output trong Project
+# Khởi tạo các đường dẫn truy cập đến thư mục và file
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_PATH = os.path.join(BASE_DIR, 'output')
+DATA_PATH = os.path.join(OUTPUT_PATH, 'data.csv')
 
 # Tạo thư mục nếu chưa có
 os.makedirs(OUTPUT_PATH, exist_ok=True)
 
 df = pd.read_csv(DATA_PATH)
 
-# Chọn các chỉ số liên quan đến phong độ cầu thủ
+# Chọn các chỉ số
 NUMERIC_METRICS = [
-    # Chơi
-    "Playing Time MP", "Playing Time Starts", "Playing Time Min", "Playing Time 90s",
-    # Hiệu suất tấn công
-    "Performance Gls", "Performance Ast", "Performance G+A",
-    "Performance G-PK", "Performance PK", "Performance PKatt",
-    "Performance CrdY", "Performance CrdR",
-    # Per 90
+    "Playing Time MP", "Playing Time Starts", "Playing Time Min",
+    "Playing Time 90s", "Performance Gls", "Performance Ast",
+    "Performance G+A", "Performance G-PK", "Performance PK",
+    "Performance PKatt", "Performance CrdY", "Performance CrdR",
     "Per 90 Minutes Gls", "Per 90 Minutes Ast", "Per 90 Minutes G+A",
-    "Per 90 Minutes G-PK", "Per 90 Minutes G+A-PK",
-    # Sút
-    "Standard Sh", "Standard SoT", "Standard SoT%",
-    "Standard Sh/90", "Standard SoT/90", "Standard G/Sh", "Standard G/SoT",
-    # Đội bóng (hiệu suất nhóm khi cầu thủ trên sân)
-    "Team Success PPM", "Team Success onG", "Team Success onGA",
-    "Team Success +/-", "Team Success +/-90", "Team Success On-Off",
-    # Khác
-    "Performance 2CrdY", "Performance Fls", "Performance Fld",
-    "Performance Off", "Performance Crs", "Performance Int",
-    "Performance TklW", "Performance PKwon", "Performance PKcon", "Performance OG",
+    "Per 90 Minutes G-PK", "Per 90 Minutes G+A-PK", "Performance GA",
+    "Performance GA90", "Performance SoTA", "Performance Saves",
+    "Performance Save%", "Performance W", "Performance D",
+    "Performance L", "Performance CS", "Performance CS%",
+    "Penalty Kicks PKatt", "Penalty Kicks PKA", "Penalty Kicks PKsv",
+    "Penalty Kicks PKm", "Penalty Kicks Save%", "Standard Sh",
+    "Standard SoT", "Standard SoT%", "Standard Sh/90",
+    "Standard SoT/90", "Standard G/Sh", "Standard G/SoT",
+    "Playing Time Mn/MP", "Playing Time Min%", "Starts Mn/Start",
+    "Starts Compl", "Subs Subs", "Subs Mn/Sub",
+    "Subs unSub", "Team Success PPM", "Team Success onG",
+    "Team Success onGA", "Team Success +/-", "Team Success +/-90",
+    "Team Success On-Off", "Performance 2CrdY", "Performance Fls",
+    "Performance Fld", "Performance Off", "Performance Crs",
+    "Performance Int", "Performance TklW", "Performance PKwon",
+    "Performance PKcon", "Performance OG",
 ]
 
 # Ép kiểu số, thay N/a -> NaN
@@ -103,33 +101,18 @@ FORM_NEGATIVE = [          # cao hơn = xấu hơn
     "Team Success onGA",
 ]
 
-form_mean = mean_df.copy()
+form_mean = df.copy()
+form_mean[FORM_NEGATIVE] *= -1
 
-# Chuẩn hóa Min-Max từng chỉ số
-def minmax(series):
-    mn, mx = series.min(), series.max()
-    if mx == mn:
-        return pd.Series(0.5, index=series.index)
-    return (series - mn) / (mx - mn)
-# vd A: 10 ban, B: 30 ban, C: 50 ban => A: 0 diem, B: 0,5 diem, C: 1 diem
+grouped = form_mean.groupby('Squad')[FORM_POSITIVE + FORM_NEGATIVE].mean()
 
-score = pd.Series(0.0, index=form_mean.index)
+normalized = (grouped - grouped.min()) / (grouped.max() - grouped.min()).round(4)
 
-for col in FORM_POSITIVE:
-    if col in form_mean.columns:
-        score += minmax(form_mean[col])
-for col in FORM_NEGATIVE:
-    if col in form_mean.columns:
-        score += (1 - minmax(form_mean[col]))
+team_ranking = normalized.sum(axis=1)
 
-# Số lượng chỉ số để xét
-n_cols = len(FORM_POSITIVE) + len(FORM_NEGATIVE)
-
-composite = (score / n_cols * 100).round(2) # Thang 0-100
-
-ranking = composite.sort_values(ascending=False).reset_index()
-ranking.columns = ["Team", "Composite Score (0–100)"]
-ranking.index = ranking.index + 1
+ranking = team_ranking.sort_values(ascending=False).reset_index()
+ranking.columns = ["Team", "Score"]
+ranking.index += 1
 ranking.index.name = "Rank"
 
 rank_csv = os.path.join(OUTPUT_PATH, 'team_form_ranking.csv')
