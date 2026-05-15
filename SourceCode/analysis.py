@@ -38,7 +38,7 @@ stats_all = stats_all[ordered_cols]
 
 # Ghi ra csv
 csv_path = os.path.join(OUTPUT_PATH, 'team_stats.csv')
-stats_all.to_csv(csv_path, encoding='utf-8')
+stats_all.fillna('N/a').to_csv(csv_path, encoding='utf-8')
 print(f"Statistical results have been successfully saved!")
 
 # ----------------------------------Tìm đội bóng có chỉ số điểm số cao nhất ở mỗi chỉ số----------------------------------

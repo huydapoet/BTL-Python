@@ -12,31 +12,55 @@ OUTPUT_PATH = os.path.join(BASE_DIR, 'output')
 DATA_PATH = os.path.join(OUTPUT_PATH, 'data.csv')
 OUTFIELD_OUTPUT = os.path.join(OUTPUT_PATH, 'outfield_kmeans')
 GK_OUTPUT = os.path.join(OUTPUT_PATH, 'gk_kmeans')
+ALL_OUTPUT = os.path.join(OUTPUT_PATH, 'all_kmeans')
 os.makedirs(OUTPUT_PATH, exist_ok=True)
 os.makedirs(OUTFIELD_OUTPUT, exist_ok=True)
 os.makedirs(GK_OUTPUT, exist_ok=True)
+os.makedirs(ALL_OUTPUT, exist_ok=True)
 
 print('Reading data...')
 df = pd.read_csv(DATA_PATH)
-# df_out = df.copy()
+
 df_out = df[~df['Pos'].str.contains('GK', na=False)].copy().reset_index(drop=True)
 df_gk = df[df['Pos'].str.contains('GK', na=False)].copy().reset_index(drop=True)
 
 OUTFIELD = [
-    # ATK
-    'Per 90 Minutes Gls', 'Per 90 Minutes Ast', 'Standard Sh/90',
-    'Standard SoT/90', 'Standard G/Sh', 'Performance Off', 'Performance Fld',
-    # DEF
-    'Performance TklW', 'Performance Int', 'Performance Fls',
-    'Performance CrdY', 'Performance CrdR', 'Performance Crs',
-    # TEAM
-    'Team Success PPM', 'Team Success +/-90', 'Playing Time 90s',
+    # --- CHỈ SỐ TẤN CÔNG (ATK) ---
+    'Per 90 Minutes Gls',  # Bàn thắng ghi được mỗi 90 phút
+    'Per 90 Minutes Ast',  # Số pha kiến tạo mỗi 90 phút
+    'Standard Sh/90',      # Số cú sút tung ra mỗi 90 phút
+    'Standard SoT/90',     # Số cú sút trúng đích mỗi 90 phút
+    'Standard G/Sh',       # Tỷ lệ bàn thắng trên mỗi cú sút (Hiệu suất dứt điểm)
+    'Performance Off',     # Số lần bị thổi việt vị
+    'Performance Fld',     # Số lần bị phạm lỗi (mang lại quả phạt cho đội)
+    
+    # --- CHỈ SỐ PHÒNG NGỰ (DEF) ---
+    'Performance TklW',    # Số pha tắc bóng (thu hồi bóng) thành công
+    'Performance Int',     # Số lần cắt bóng / đánh chặn
+    'Performance Fls',     # Số lần phạm lỗi với đối phương
+    'Performance CrdY',    # Số thẻ vàng phải nhận
+    'Performance CrdR',    # Số thẻ đỏ phải nhận
+    'Performance Crs',     # Số lượng quả tạt bóng
+    
+    # --- CHỈ SỐ ĐÓNG GÓP TẬP THỂ (TEAM) ---
+    'Team Success PPM',    # Điểm số trung bình giành được mỗi trận khi cầu thủ ra sân (Points Per Match)
+    'Team Success +/-90',  # Hiệu số bàn thắng/thua của đội mỗi 90 phút khi cầu thủ có mặt trên sân
+    # "Playing Time 90s",    # Tổng số thời gian thi đấu (quy đổi ra số trận 90 phút)
 ]
+
 GK = [
-    'Performance Save%', 'Performance GA90', 'Performance CS%',
-    'Performance W', 'Performance D', 'Performance L',
-    'Penalty Kicks Save%', 'Performance Saves',
+    # --- CHỈ SỐ THỦ MÔN (GOALKEEPER) ---
+    'Performance Save%',   # Tỷ lệ cứu thua thành công (%)
+    'Performance GA90',    # Số bàn thua trung bình mỗi 90 phút (Goals Against)
+    'Performance CS%',     # Tỷ lệ phần trăm số trận giữ sạch lưới (Clean Sheets)
+    'Performance W',       # Số trận thắng bắt chính
+    'Performance D',       # Số trận hòa bắt chính
+    'Performance L',       # Số trận thua bắt chính
+    'Penalty Kicks Save%', # Tỷ lệ cản phá phạt đền (Penalty) thành công (%)
+    'Performance Saves',   # Tổng số pha cứu thua thành công
 ]
+
+ALL = OUTFIELD + GK
 
 print('Preprocessing data...')
 def preprocess_features(data, columns):
@@ -54,6 +78,9 @@ def preprocess_features(data, columns):
 X, X_scaled = preprocess_features(df_out, OUTFIELD)
 X_gk, X_gk_scaled = preprocess_features(df_gk, GK)
 
+
+X_all, X_all_scaled = preprocess_features(df, ALL)
+
 # Hàm vẽ Elbow plot
 def elbow_plot(X_scaled_data, title, output_path, file_name, kmin=1, kmax=10):
     distortions = []
@@ -63,18 +90,19 @@ def elbow_plot(X_scaled_data, title, output_path, file_name, kmin=1, kmax=10):
         kmeans.fit(X_scaled_data)
         distortions.append(kmeans.inertia_)
 
-    plt.figure(figsize=(10, 6))
+    fig = plt.figure(figsize=(10, 6))
     plt.plot(K_range, distortions, 'bx-')
     plt.xlabel('Number of clusters (k)')
     plt.ylabel('Distortion')
     plt.title(title)
     plt.grid(True)
     out_path = os.path.join(output_path, file_name)
-    plt.savefig(out_path)
+    fig.savefig(out_path)
     plt.show()
-    plt.close()
+    plt.close(fig)
     print('Elbow plot generated successfully.')
 
+# Hàm vẽ Silhouette plot
 def silhouette_multi_plot(X_scaled_data, title, output_path, file_name, k_min=2, k_max=5):
     num_k = k_max - k_min + 1
     cols = 2
@@ -105,7 +133,7 @@ def plot_pca_2d(df, X_scaled_data, title, output_path, file_name, cluster_col='C
     df['PCA1_2D'] = X_pca[:, 0]
     df['PCA2_2D'] = X_pca[:, 1]
 
-    plt.figure(figsize=(10, 8))
+    fig = plt.figure(figsize=(10, 8))
     sns.scatterplot(x='PCA1_2D', y='PCA2_2D', hue=cluster_col, palette='viridis', data=df, s=80, alpha=0.8)
     plt.title(title)
     plt.xlabel('Principal Component 1 (PCA1)')
@@ -113,9 +141,9 @@ def plot_pca_2d(df, X_scaled_data, title, output_path, file_name, cluster_col='C
     plt.legend(title='Cluster')
     plt.grid(True)
     out_path = os.path.join(output_path, file_name)
-    plt.savefig(out_path)
+    fig.savefig(out_path)
     plt.show()
-    plt.close()
+    plt.close(fig)
     print('PCA 2D plot generated successfully.')
 
 # Sử dụng thuật toán PCA vẽ scatter plot phân cụm dữ liệu trên mặt 3D
@@ -136,14 +164,15 @@ def plot_pca_3d(df, X_scaled_data, title, output_path, file_name, cluster_col='C
     legend = ax.legend(*scatter.legend_elements(), title='Cluster')
     ax.add_artist(legend)
     out_path = os.path.join(output_path, file_name)
-    plt.savefig(out_path)
+    fig.savefig(out_path)
     plt.show()
-    plt.close()
+    plt.close(fig)
     print('PCA 3D plot generated successfully.')
 
 while True:
     choice = input(
         '\nPlease select the clustering category:\n'
+        '[all] All players clusters (GK + Outfield)\n'
         '[gk]  Goalkeeper clusters\n'
         '[outfield] Outfield player clusters\n'
         '[exit] Exit program\n'
@@ -151,12 +180,12 @@ while True:
     ).lower()
     if choice == 'exit': break
     elif choice == 'outfield':
-
+        # ---------------------- Vẽ elbow, housette, scatter cho outfield player
         # Vẽ Elbow plot
         print('Generating Elbow plots for outfield players...')
         elbow_plot(X_scaled, 'The Elbow Plot showing the optimal k for Outfield Players',OUTFIELD_OUTPUT, 'elbow_plot.png', kmin=2, kmax=10)
 
-        # Vẽ Sillhousette plot
+        # Vẽ Silhouette plot
         print('Generating Silhouette plots for outfield players...')
         silhouette_multi_plot(X_scaled, 'Silhouette Plots for Outfield Players (k=2 to 5)',OUTFIELD_OUTPUT, 'silhouette_multi_plot.png', k_min=2, k_max=5)
 
@@ -167,8 +196,14 @@ while True:
 
         # Vẽ scatter plot
         print('Generating PCA 2D & 3D for outfield players...')
-        plot_pca_2d(df_out, X_scaled, 'Player Clusters (K-means) - PCA 2D', OUTFIELD_OUTPUT, 'pca_2d_clusters.png')
-        plot_pca_3d(df_out, X_scaled, 'Player Clusters (K-means) - PCA 3D', OUTFIELD_OUTPUT, 'pca_3d_clusters.png')
+        plot_pca_2d(df_out, X_scaled, 'Outfield Player Clusters (K-means) - PCA 2D', OUTFIELD_OUTPUT, 'pca_2d_clusters.png')
+        plot_pca_3d(df_out, X_scaled, 'Outfield Player Clusters (K-means) - PCA 3D', OUTFIELD_OUTPUT, 'pca_3d_clusters.png')
+
+        # for i in range(optimal_k):
+        #     cluster_df = df_out[df_out['Cluster'] == i]
+        #     file_path = os.path.join(OUTPUT_PATH, f'cluster_{i}.csv')
+        #     cluster_df.to_csv(file_path, index=False)
+        #     print(f"Saved Cluster {i} with {len(cluster_df)} players to: {file_path}")
 
     elif choice == 'gk':
         # ---------------------- Vẽ elbow, Sillhousette, scatter cho gk
@@ -176,7 +211,7 @@ while True:
         print('Generating Elbow plots for Goalkeepers...')
         elbow_plot(X_gk_scaled, 'The Elbow Plot showing the optimal k for GK',GK_OUTPUT, 'elbow_gk.png', kmin=1, kmax=6)
 
-        # Vẽ Sillhousette plot
+        # Vẽ Silhouette plot
         print('Generating Silhouette plots for outfield Goalkeepers...')
         silhouette_multi_plot(X_gk_scaled, 'Silhouette Plots for Goalkeepers (k=2 to 5)',GK_OUTPUT, 'silhouette_gk_multi_plot.png', k_min=2, k_max=5)
 
@@ -188,6 +223,24 @@ while True:
         print('Generating PCA 2D & 3D for Goalkeepers...')
         plot_pca_2d(df_gk, X_gk_scaled, 'GK Clusters (K-means) - PCA 2D', GK_OUTPUT, 'pca_gk_2d_clusters.png')
         plot_pca_3d(df_gk, X_gk_scaled, 'GK Clusters (K-means) - PCA 3D', GK_OUTPUT, 'pca_gk_3d_clusters.png')
+
+    elif choice == 'all':
+        # Vẽ Elbow plot
+        print('Generating Elbow plots for all players...')
+        elbow_plot(X_all_scaled, 'The Elbow Plot showing the optimal k for All Players',ALL_OUTPUT, 'elbow.png', kmin=2, kmax=6)
+
+        # Vẽ Sillhousette plot
+        print('Generating Silhouette plots for All players...')
+        silhouette_multi_plot(X_all_scaled, 'Silhouette Plots for All Players (k=2 to 5)',ALL_OUTPUT, 'silhouette_multi_plot.png', k_min=2, k_max=5)
+
+        optimal_k = int(input('\nEnter the optimal k for All Players: '))
+        kmeans_opt = KMeans(n_clusters=optimal_k, random_state=42, n_init=10)
+        df['Cluster'] = kmeans_opt.fit_predict(X_all_scaled)
+
+        # Vẽ scatter plot
+        print('Generating PCA 2D & 3D for all players...')
+        plot_pca_2d(df, X_all_scaled, f'All Player Clusters (K-means) - PCA 2D', ALL_OUTPUT, 'pca_all_2d_clusters.png')
+        plot_pca_3d(df, X_all_scaled, f'All Player Clusters (K-means) - PCA 3D', ALL_OUTPUT, 'pca_all_3d_clusters.png')
 
     else:
         print('Invalid input, please try again.')
