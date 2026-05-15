@@ -1,0 +1,10 @@
+pandas
+matplotlib
+seaborn
+scikit-learn
+yellowbrick
+requests
+numpy
+beautifulsoup4
+seleniumbase
+Flask
