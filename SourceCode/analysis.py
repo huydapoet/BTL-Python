@@ -11,42 +11,21 @@ os.makedirs(OUTPUT_PATH, exist_ok=True)
 
 df = pd.read_csv(DATA_PATH)
 
-# Chọn các chỉ số
-NUMERIC_METRICS = [
-    "Playing Time MP", "Playing Time Starts", "Playing Time Min",
-    "Playing Time 90s", "Performance Gls", "Performance Ast",
-    "Performance G+A", "Performance G-PK", "Performance PK",
-    "Performance PKatt", "Performance CrdY", "Performance CrdR",
-    "Per 90 Minutes Gls", "Per 90 Minutes Ast", "Per 90 Minutes G+A",
-    "Per 90 Minutes G-PK", "Per 90 Minutes G+A-PK", "Performance GA",
-    "Performance GA90", "Performance SoTA", "Performance Saves",
-    "Performance Save%", "Performance W", "Performance D",
-    "Performance L", "Performance CS", "Performance CS%",
-    "Penalty Kicks PKatt", "Penalty Kicks PKA", "Penalty Kicks PKsv",
-    "Penalty Kicks PKm", "Penalty Kicks Save%", "Standard Sh",
-    "Standard SoT", "Standard SoT%", "Standard Sh/90",
-    "Standard SoT/90", "Standard G/Sh", "Standard G/SoT",
-    "Playing Time Mn/MP", "Playing Time Min%", "Starts Mn/Start",
-    "Starts Compl", "Subs Subs", "Subs Mn/Sub",
-    "Subs unSub", "Team Success PPM", "Team Success onG",
-    "Team Success onGA", "Team Success +/-", "Team Success +/-90",
-    "Team Success On-Off", "Performance 2CrdY", "Performance Fls",
-    "Performance Fld", "Performance Off", "Performance Crs",
-    "Performance Int", "Performance TklW", "Performance PKwon",
-    "Performance PKcon", "Performance OG",
-]
+# Lọc bỏ các cột chứa chữ (định danh), tự động lấy TẤT CẢ các cột còn lại làm chỉ số tính toán
+INFO_COLS = ['Player', 'Nation', 'Pos', 'Squad', 'Age', 'Born']
+NUMERIC_METRICS = [col for col in df.columns if col not in INFO_COLS]
 
 # Ép kiểu số, thay N/a -> NaN
 for col in NUMERIC_METRICS:
-    df[col] = pd.to_numeric(df[col], errors="coerce")
+    df[col] = pd.to_numeric(df[col], errors='coerce')
 
 # ----------------------------------Tính median / mean / std theo từng đội----------------------------------
 
 group = df.groupby('Squad')[NUMERIC_METRICS]
 
-stats_median = group.median().add_suffix("_median")
-stats_mean = group.mean().add_suffix("_mean")
-stats_std = group.std().add_suffix("_std")
+stats_median = group.median().add_suffix('_median')
+stats_mean = group.mean().add_suffix('_mean')
+stats_std = group.std().add_suffix('_std')
 
 # Ghép ba bảng lại với nhau nối theo chiều ngang với (axis = 1) và các chỉ số ở các cột lấy sau dấu phẩy 4 chữ số
 stats_all = pd.concat([stats_median, stats_mean, stats_std], axis=1).round(4)
@@ -76,45 +55,88 @@ best_team_per_metric = mean_df_clean.idxmax(skipna=True)
 best_val_per_metric = mean_df_clean.max(skipna=True)
 
 best_table = pd.DataFrame({
-    "Metric"     : best_team_per_metric.index,
-    "Best Team"          : best_team_per_metric.values,
-    "Mean value"    : best_val_per_metric.values.round(4),
+    'Metric'     : best_team_per_metric.index,
+    'Best Team'          : best_team_per_metric.values,
+    'Mean value'    : best_val_per_metric.values.round(4),
 })
 
 best_csv = os.path.join(OUTPUT_PATH, 'best_team_per_stat.csv')
-best_table.to_csv(best_csv, index=False, encoding="utf-8-sig")
+best_table.to_csv(best_csv, index=False, encoding='utf-8-sig')
 print(f"Best team per stat has been successfully saved!")
 
 # ----------------------------------Tìm đội bóng có phong độ tốt nhất giải ngoại hạng Anh----------------------------------
 
-# Chọn chỉ số tấn công / phòng ngự / teamwork để đánh giá phong độ
-FORM_POSITIVE = [           # cao hơn = tốt hơn
-    "Performance Gls", "Performance Ast", "Performance G+A",
-    "Per 90 Minutes Gls", "Per 90 Minutes G+A",
-    "Standard SoT", "Standard SoT%", "Standard G/Sh",
-    "Team Success PPM", "Team Success +/-", "Team Success +/-90",
-    "Performance TklW", "Performance Int", "Performance Fld",
-]
-FORM_NEGATIVE = [          # cao hơn = xấu hơn
-    "Performance CrdY", "Performance CrdR",
-    "Performance Fls", "Performance OG",
-    "Team Success onGA",
+FORM_POSITIVE = [
+    'Performance Gls', 'Performance Ast', 'Standard SoT', 'Standard SoT%', 'Standard G/Sh',
+    'Team Success PPM', 'Team Success +/-', 'Performance TklW', 'Performance Int', 'Performance Fld',
 ]
 
-form_mean = df.copy()
-form_mean[FORM_NEGATIVE] *= -1
+FORM_NEGATIVE = [
+    'Performance CrdY', 'Performance CrdR', 'Performance Fls',
+    'Performance OG', 'Team Success onGA',
+]
 
-grouped = form_mean.groupby('Squad')[FORM_POSITIVE + FORM_NEGATIVE].mean()
+# Tổng trọng số của tất cả các chỉ số nên bằng 1.0 (hoặc 100%)
+WEIGHTS = {
+    # Hiệu suất chung (Quan trọng nhất)
+    'Team Success PPM': 0.30,
+    'Team Success +/-': 0.15,
+    # Tấn công
+    'Performance Gls': 0.12,
+    'Performance Ast': 0.08,
+    'Standard SoT': 0.05,
+    'Standard SoT%': 0.04,
+    'Standard G/Sh': 0.04,
+    'Performance Fld': 0.02,
+    # Phòng ngự & Kỷ luật
+    'Team Success onGA': 0.10,
+    'Performance TklW': 0.04,
+    'Performance Int': 0.04,
+    'Performance CrdR': 0.01,
+    'Performance CrdY': 0.005,
+    'Performance Fls': 0.005,
+    'Performance OG': 0.01,
+}
 
-normalized = (grouped - grouped.min()) / (grouped.max() - grouped.min()).round(4)
+# Gom nhóm và tính trung bình theo Đội bóng
+grouped = df.groupby('Squad')[FORM_POSITIVE + FORM_NEGATIVE].mean()
 
-team_ranking = normalized.sum(axis=1)
+# Chuẩn hóa Min-Max chuẩn theo từng nhóm hướng dữ liệu (Thang điểm 0 - 1)
+normalized = pd.DataFrame(index=grouped.index)
 
-ranking = team_ranking.sort_values(ascending=False).reset_index()
-ranking.columns = ["Team", "Score"]
+# Nhóm càng cao càng tốt
+for col in FORM_POSITIVE:
+    min_val, max_val = grouped[col].min(), grouped[col].max()
+    if max_val != min_val:
+        normalized[col] = (grouped[col] - min_val) / (max_val - min_val)
+    else:
+        normalized[col] = 1.0
+
+# Nhóm càng thấp càng tốt (Tự động đảo chiều điểm số không cần nhân -1 trước)
+for col in FORM_NEGATIVE:
+    min_val, max_val = grouped[col].min(), grouped[col].max()
+    if max_val != min_val:
+        normalized[col] = (max_val - grouped[col]) / (max_val - min_val)
+    else:
+        normalized[col] = 1.0
+
+# Nhân điểm đã chuẩn hóa với trọng số tương ứng
+for col in WEIGHTS.keys():
+    normalized[col] = normalized[col] * WEIGHTS[col]
+
+# Tính tổng điểm phong độ cuối cùng
+team_ranking = normalized[list(WEIGHTS.keys())].sum(axis=1) * 100
+
+# Xuất kết quả định dạng chuẩn
+ranking = (
+    team_ranking.sort_values(ascending=False)
+    .round(2)
+    .reset_index()
+)
+ranking.columns = ['Team', 'Score']
 ranking.index += 1
-ranking.index.name = "Rank"
+ranking.index.name = 'Rank'
 
 rank_csv = os.path.join(OUTPUT_PATH, 'team_form_ranking.csv')
 ranking.to_csv(rank_csv, encoding='utf-8')
-print(f"Ranking results have been successfully saved!")
+print(f"Ranking results have been successfully saved with optimized weights!")

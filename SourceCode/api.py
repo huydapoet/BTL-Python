@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify
 import pandas as pd
 import os
@@ -14,8 +13,8 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Tìm file CSV
 def find_csv():
     for candidate in [
-        os.path.join(_PROJECT_ROOT, "data.csv"),
-        os.path.join(_PROJECT_ROOT, "output", "data.csv"),
+        os.path.join(_PROJECT_ROOT, 'data.csv'),
+        os.path.join(_PROJECT_ROOT, 'output', 'data.csv'),
     ]:
         if os.path.exists(candidate):
             return candidate
@@ -33,7 +32,7 @@ def get_data():
         try:
             dataframe = pd.read_csv(file_path)
         except Exception as e:
-            print("Error loading CSV:", e)
+            print('Error loading CSV:', e)
             dataframe = None
     return dataframe
 
@@ -71,9 +70,9 @@ def get_player_stats_path(name):
 
 # Khởi chạy server
 if __name__ == '__main__':
-    print("Starting Flask server...")
-    print("API Endpoints:")
-    print("1. GET /api/player?name=<player_name>")
-    print("2. GET /api/player/<player_name>")
+    print('Starting Flask server...')
+    print('API Endpoints:')
+    print('1. GET /api/player?name=<player_name>')
+    print('2. GET /api/player/<player_name>')
     app.run(debug=True)
 

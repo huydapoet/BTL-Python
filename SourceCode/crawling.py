@@ -122,11 +122,11 @@ def main():
         if auto_rename_map:
             data_all = data_all.rename(columns=auto_rename_map)
 
-        data_all.fillna("N/a").to_csv(file_path, index=False, encoding='utf-8-sig')
+        data_all.fillna('N/a').to_csv(file_path, index=False, encoding='utf-8-sig')
         print('DONE')
     else:
         print('No data collected')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
